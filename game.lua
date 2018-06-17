@@ -1,215 +1,353 @@
------------------------------------------------------------------------------------------
+-- Project: SaturnInvader
+-- Description: A simple shooting game for beginner in learning Corona game engine
 --
--- Unit5.1
---這章會將整個結構幾乎大改,我們先將需要的函式庫以及自字型檔之類的直接放到最前端
------------------------------------------------------------------------------------------
+-- Version: 1.0
+-- Used by the course : "Learning English by Making Mobile Game - Advanced"
+--
+-- Created by Dr. Twobears (Chi-Hsiung Liang.)
+-- SaturnInvader  game.lua
+-- -----------------------------------------------------------------------------------------------------------------
+-- All code outside of the listener functions will only be executed ONCE unless "composer.removeScene()" is called.
+-- -----------------------------------------------------------------------------------------------------------------
 
---呼叫composer函式庫
-local composer = require( "composer" )
+-- local forward references should go here
+local composer=require ("composer")
 
---創建新場景
-local scene = composer.newScene()
- 
--- -----------------------------------------------------------------------------------
--- Code outside of the scene event functions below will only be executed ONCE unless
--- the scene is removed entirely (not recycled) via "composer.removeScene()"
--- -----------------------------------------------------------------------------------
--- 然後將一些公共參數先打出來
--- -----------------------------------------------------------------------------------
-local bgm = audio.loadSound ("fd.mp3")
-local playBgm = audio.play(bgm,{channel=2,loops=-1,fadeim=1000})
-
+local scene=composer.newScene()
+--加入物理引擎
+local physics = require("physics")
+physics.start()
+physics.setGravity(0, 0)
+-- physics.setDrawMode( "hybrid" ) -- 顯示碰撞範圍
+-- -------------------------------------------------------------------------------
 local centerX = display.contentCenterX
 local centerY = display.contentCenterY
-local _W = display.contentWidth
-local _H = display.contentHeight
 local tPrevious = system.getTimer()
--- Define reference points locations anchor ponts
-local TOP_REF = 0
-local BOTTOM_REF = 1
-local LEFT_REF = 0
-local RIGHT_REF = 1
-local CENTER_REF = 0.5
+local backgroundGroup = display.newGroup()
 
-display.setStatusBar( display.HiddenStatusBar )
+local layerGroup = display.newGroup()
+local ship
+local fireTimer
+local bulletGroup=display.newGroup()
+local enemies = display.newGroup()
+--爆炸群組
+local explosionGroup = display.newGroup()
+local checkMemoryTimer
 
--- The sky as background
-
-
--- -----------------------------------------------------------------------------------
--- Scene event functions
--- -----------------------------------------------------------------------------------
- 
--- create()
--- -----------------------------------------------------------------------------------
--- 這里以下才是場景開始時要出現的畫面
--- -----------------------------------------------------------------------------------
-local sky = display.newImage( "xxxx.png", centerX, centerY )
-
-    local baseline = 280
-
-    local tree = {}
-    tree[1] = display.newImage( "10.png" )
-    tree[1].xScale = 0.2; tree[1].yScale = 0.5
-    tree[1].anchorY = BOTTOM_REF
-    tree[1].x = 20; tree[1].y = baseline -80
-    tree[1].dx = 0.1
-    tree[2] = display.newImage( "20.png" )
-    tree[2].xScale = 0.2; tree[2].yScale = 0.5
-    tree[2].anchorY = BOTTOM_REF
-    tree[2].x = 120; tree[2].y = baseline -120
-    tree[2].dx = 0.2
-    tree[3] = display.newImage( "30.png" )
-    tree[3].xScale = 0.2; tree[3].yScale = 0.5
-    tree[3].anchorY = BOTTOM_REF
-    tree[3].x = 200; tree[3].y = baseline -40
-    tree[3].dx = 0.3
-    tree[4] = display.newImage( "0.png" )
-    tree[4].xScale = 1; tree[4].yScale = 1
-    tree[4].anchorY = BOTTOM_REF
-    tree[4].x = baseline; tree[4].y = baseline -115
-    tree[4].dx = 0.4
-    tree[5] = display.newImage( "1.png" )
-    tree[5].xScale = 0.6; tree[5].yScale = 0.5
-    tree[5].anchorY = BOTTOM_REF
-    tree[5].x = 300; tree[5].y = baseline -210
-    tree[5].dx = 0.5
-    tree[6] = display.newImage( "40.png" )
-    tree[6].xScale = 0.2; tree[5].yScale = 0.2
-    tree[6].anchorY = BOTTOM_REF
-    tree[6].x = 300; tree[6].y = baseline
-    tree[6].dx = 0.6
-    tree[7] = display.newImage( "222.png" )
-    tree[7].xScale = 1.2; tree[7].yScale = 1
-    tree[7].anchorY = BOTTOM_REF
-    tree[7].x = 400; tree[7].y = baseline +30
-    tree[7].dx = 0.3
-    tree[8] = display.newImage( "50.png" )
-    tree[8].xScale = 0.2; tree[5].yScale = 0.2
-    tree[8].anchorY = BOTTOM_REF
-    tree[8].x = 300; tree[6].y = baseline
-    tree[8].dx = 0.4
-
-
-    local sheet1 = graphics.newImageSheet( "runningcat1.png", { width=512, height=256, numFrames=8 } )
-
-    local instance1 = display.newSprite( sheet1, { name="cat", frames={1,2,3,4,5,6}, time=1000 } )
-    instance1.x = display.contentWidth -300
-    instance1.y = baseline -70
-    instance1.xScale = .5
-    instance1.yScale = .5
-    instance1:play()
-
-    local sheet2 = graphics.newImageSheet( "gogo1.png", { width=256, height=512, numFrames=8 } )
-
-    local instance2 = display.newSprite( sheet2, { name="cat11", frames={1,2,3,4,5,6,7,8}, time=2000 } )
-    instance2.x = display.contentWidth -40
-    instance2.y = baseline -75
-    instance2.xScale = .25
-    instance2.yScale = .25
-    instance2:play()
-
-    local grass = display.newImage( "grass.png" )
-    grass.anchorX = LEFT_REF
-    grass.x = 0
-    grass.y = baseline +140
-    local grass2 = display.newImage( "grass.png" )
-    grass2.anchorX = LEFT_REF
-    grass2.x = 480
-    grass2.y = baseline +140
-    
+local numEnemy = 0
+local enemyArray = {}
+-- "scene:create()"
 function scene:create( event )
- 
+
     local sceneGroup = self.view
-    -- Code here runs when the scene is first created but has not yet appeared on screen
-    
+    --預先載入音效
+    sounds = {
+	music = audio.loadSound("gameMusic.mp3"),
+	laser = audio.loadSound("laserFire.wav"),
+	explosion = audio.loadSound("explosion.wav"),
+   }
+    -- Initialize the scene here.
+    -- Example: add display objects to "sceneGroup", add touch listeners, etc.
+    --背景
+    local bg = display.newImageRect( "background_Green_480x320.png", 480, 320 )
+    local bg1 = display.newImageRect( "background_Green_480x320.png", 480, 320 )
+       bg.anchorX = 0
+       bg.x = 0
+       bg.y = centerY
+       bg.speed = 1
+       bg1.anchorX = 0
+	   bg1.x = 480
+	   bg1.y=centerY
+	   bg1.speed = 1
+       backgroundGroup:insert(display.newGroup(bg,bg1))
+       sceneGroup:insert(backgroundGroup)
+       
+    local layer1 = display.newImageRect( "spaceLayer1.png", 480, 320 )
+    local layer2 = display.newImageRect( "spaceLayer2.png", 480, 320 )
+       layer1.anchorX = 0
+       layer1.x = 0
+       layer1.y = centerY
+       layer1.speed = 1.5
+       layer2.anchorX = 0
+	   layer2.x = 480
+	   layer2.y=centerY
+	   layer2.speed = 2
+       layerGroup:insert(display.newGroup(layer1,layer2))
+       sceneGroup:insert(layerGroup)  
 
--- solid ground, doesn't need to move
+	
+	--ship
+	local shipOptions =
+	{	
+	    width = 65,
+	    height = 24,
+	    numFrames = 6,
+	    sheetContentWidth = 390,  
+	    sheetContentHeight = 24  
+	}
+	
+	sceneGroup:insert(bulletGroup)
+	
+	local shipSheet = graphics.newImageSheet( "ship.png", shipOptions )
+	ship = display.newSprite( shipSheet, { name="ship", start=1, count=4, time=1000 } )
+	ship.x=centerX*0.2
+	ship.y=centerY
+	ship:play ( )
+	sceneGroup:insert(ship)
 
--- A per-frame event to move the elements
-local tPrevious = system.getTimer()
+	--enemy
+ function createEnemy()
+	numEnemy = numEnemy +1 
 
-end --這個end是scene:create的
--- -----------------------------------------------------------------------------------
--- 然後將移動function寫在場景以外的部分
--- -----------------------------------------------------------------------------------
---設置移動功能
+	print(numEnemy)
+	local enemyOptions =
+	{	
+	    width = 66,
+	    height = 24,
+	    numFrames = 3,
+	    sheetContentWidth = 198,  
+	    sheetContentHeight = 24  
+	}
+
+	local enemySheet = graphics.newImageSheet( "enemy.png", enemyOptions )
+	enemies:toFront()
+	
+	
+	enemyArray[numEnemy]  = display.newSprite(enemySheet, { name="enemy", start=1, count=3, time=1000 } )
+	        enemyArray[numEnemy] :play() 
+			physics.addBody ( enemyArray[numEnemy] , { isSensor = true,bounce = 0})--加入物理鋼體
+			enemyArray[numEnemy].name = "enemy" 
+			-- startlocationX = math.random (0, display.contentWidth)
+			startlocationX = centerX*1.7
+			enemyArray[numEnemy] .x = startlocationX
+			--startlocationY = math.random (-500, -100)
+			startlocationY  = math.random (0, display.contentHeight)
+			enemyArray[numEnemy] .y = startlocationY
+		
+			transition.to ( enemyArray[numEnemy] , { time = math.random (6000, 10000), x= -50, y=enemyArray[numEnemy] .y } )
+
+			enemies:insert(enemyArray[numEnemy] )
+	        
+ end
+ 
+local i
+for i =1, 5 do
+createEnemy()
+end
+	
+end
+
 local function move(event)
-    local tDelta = event.time - tPrevious
-    tPrevious = event.time
-    local xOffset = ( 0.2 * tDelta )
-
-    grass.x = grass.x - xOffset
-    grass2.x = grass2.x - xOffset
-  
-    if (grass.x + grass.contentWidth) < 0 then
-    grass:translate( 480 * 2, 0)
-    end
-    if (grass2.x + grass2.contentWidth) < 0 then
-    grass2:translate( 480 * 2, 0)
-    end
-  
+	local tDelta = event.time - tPrevious
+	tPrevious = event.time
+    
     local i
-     for i = 1, #tree, 1 do
-     tree[i].x = tree[i].x - tree[i].dx * tDelta * 0.2
-      if (tree[i].x + tree[i].contentWidth) < 0 then
-      tree[i]:translate( 480 + tree[i].contentWidth * 2, 0 )
-    end
-  end
+    for i = 1, backgroundGroup.numChildren do
+    	backgroundGroup[i][1].x = backgroundGroup[i][1].x - backgroundGroup[i][1].speed / 10*tDelta
+        backgroundGroup[i][2].x = backgroundGroup[i][2].x - backgroundGroup[i][2].speed / 10*tDelta
+        if (backgroundGroup[i][1].x +backgroundGroup[i][1].contentWidth) < 0 then
+			backgroundGroup[i][1]:translate( 480 * 2, 0)
+		end
+		 if (backgroundGroup[i][2].x +backgroundGroup[i][2].contentWidth) < 0 then
+			backgroundGroup[i][2]:translate( 480 * 2, 0)
+		end 	
+	end
+
+	for i = 1, layerGroup.numChildren do
+		layerGroup[i][1].x =layerGroup[i][1].x-layerGroup[i][1].speed /10*tDelta
+		layerGroup[i][2].x =layerGroup[i][2].x-layerGroup[i][2].speed /10*tDelta
+		if (layerGroup[i][1].x +layerGroup[i][1].contentWidth) < 0 then
+			layerGroup[i][1]:translate( 480 * 2, 0)
+
+		end
+		if (layerGroup[i][2].x +layerGroup[i][2].contentWidth) < 0 then
+			layerGroup[i][2]:translate( 480 * 2, 0)
+
+		end
+	end
+
+
 end
 
--- show()
+local function removeBullet( obj )
+	--print("removeObject")
+	transition.cancel( obj )
+	-- bulletGroup:remove( obj )
+	obj:removeSelf()
+	obj=nil
+	--print("bulletGroup numChildren".. bulletGroup.numChildren)
+end
+
+local function fire(  )
+	audio.play( sounds.laser )
+	print( "fire" )
+	local bullet = display.newImage( "laser.png",ship.x+30,ship.y)
+	transition.to(bullet,  {time = 750, x = display.viewableContentWidth+bullet.contentWidth/2,onComplete =removeBullet})
+	physics.addBody(bullet, "dynamic", {bounce = 0})--加入物理鋼體
+	bullet.name = "bullet"
+	bulletGroup:insert(bullet)
+	print("bulletGroup numChildren".. bulletGroup.numChildren)
+end
+
+
+local function shipTouch(event)
+	if event.phase=="began" then
+    
+		print("shipTouch_began")
+		fireTimer=timer.performWithDelay( 100, fire,0)
+		display.getCurrentStage():setFocus(event.target)
+	elseif ( event.phase == "moved" ) then
+		--讓飛船位置＝點擊位置
+	    
+        if  event.x >= ship.contentWidth/2 and event.x <= display.viewableContentWidth - ship.contentWidth/2 then
+        		ship.x=event.x
+
+		 end
+		 if  event.y >= ship.contentHeight/2 and event.y <= display.viewableContentHeight - ship.contentHeight/2 then
+        		ship.y=event.y
+		 end
+        --print( "touch location in content coordinates = "..event.x..","..event.y )
+    elseif ( event.phase == "ended" ) then
+        display.getCurrentStage():setFocus(nil)
+        print("shipTouch_ended")
+        timer.cancel ( fireTimer )
+        fireTimer=nil
+	end
+end
+
+
+--[[local function changeScene(event)
+	print("touch")
+	print("changeScene")
+	if (event.phase=="began") then
+		
+		composer.gotoScene("menu",{effect ="fade",time=400})
+	end
+end]]
+--移除爆炸
+local function removExplode( obj )
+    return function()
+    obj:removeSelf() 
+    obj=nil
+    --print("explosionGroup numChildren".. explosionGroup.numChildren)
+end 
+end
+--加入爆炸
+local function explode( x,y )
+	local explosionOptions =
+	{	
+	    width = 55,
+	    height = 55,
+	    numFrames = 15,
+	    sheetContentWidth = 825,  
+	    sheetContentHeight = 55  
+	}
+	local explosionSheet = graphics.newImageSheet( "explosion1.png", explosionOptions )
+	local explosion = display.newSprite( explosionSheet, { name="explosion", start=1, count=15, time=1000 ,loopCount = 1 } )
+	explosion.blendMode = "add"
+	explosion.x=x
+	explosion.y=y
+	explosion:play()
+	explosionGroup:insert(explosion)
+	--print("explosionGroup numChildren".. explosionGroup.numChildren)
+	audio.play( sounds.explosion )
+math.random (-500, -100)
+end
+
+
+--加入物理碰撞偵測
+local function onCollision( event )
+    if ( event.phase == "began" ) then
+			if  event.object1.name == "enemy" and event.object2.name == "bullet"  then
+				--子彈碰到敵人,敵人消失
+				print( "began: " .. event.object1.name .. " and " .. event.object2.name )
+				removeBullet(event.object1)
+				--消失同時呼叫爆炸，爆炸位置=敵人消失位置
+				local x,y =event.object1.x,event.object1.y
+				explode(x,y)
+			end
+    end
+end
+
+local function checkMemory()
+   collectgarbage( "collect" )
+   local memUsage_str = string.format( "MEMORY = %.3f KB", collectgarbage( "count" ) )
+   print( memUsage_str, "TEXTURE = "..(system.getInfo("textureMemoryUsed") / (1024 * 1024) ) )
+end
+
+
+-- "scene:show()"
 function scene:show( event )
- 
-    local sceneGroup = self.view
-    local phase = event.phase
- 
-    if ( phase == "will" ) then
-        -- Code here runs when the scene is still off screen (but is about to come on screen)
-        Runtime:addEventListener( "enterFrame", move )
-    elseif ( phase == "did" ) then
 
-        -- Code here runs when the scene is entirely on screen
-        --記得移除上個場景
-         composer.removeScene("menu")
-    end
-end
- 
- 
--- hide()
-function scene:hide( event )
- 
     local sceneGroup = self.view
     local phase = event.phase
- 
+
     if ( phase == "will" ) then
-        -- Code here runs when the scene is on screen (but is about to go off screen)
-      
+        -- Called when the scene is still off screen (but is about to come on screen).
+        Runtime:addEventListener( "enterFrame", move );
+		
     elseif ( phase == "did" ) then
-        -- Code here runs immediately after the scene goes entirely off screen
-        
+        -- Called when the scene is now on screen.
+        -- Insert code here to make the scene come alive.
+        -- Example: start timers, begin animation, play audio, etc.
+        print("game")
+        composer.removeScene("menu")
+        audio.play( sounds.music, { channel=1, loops=-1})
+        ship:addEventListener( "touch",  shipTouch );
+        Runtime:addEventListener( "collision", onCollision )
+        checkMemoryTimer = timer.performWithDelay( 1000, checkMemory, 0 )
     end
 end
- 
- 
--- destroy()
-function scene:destroy( event )
- 
+
+
+-- "scene:hide()"
+function scene:hide( event )
+
     local sceneGroup = self.view
-    -- Code here runs prior to the removal of scene's view
-    print("destroy_menu")
+    local phase = event.phase
+
+    if ( phase == "will" ) then
+        -- Called when the scene is on screen (but is about to go off screen).
+        -- Insert code here to "pause" the scene.
+        -- Example: stop timers, stop animation, stop audio, etc.
+        physics.stop( )
+        audio.stop()
+        for s,v in pairs( sounds ) do
+		    audio.dispose( sounds[s] )
+		    sounds[s] = nil
+		end
+         Runtime:removeEventListener( "enterFrame", move );
+         ship:removeEventListener( "touch",  changeScene );
+         --Runtime:removeEventListener( "collision", onCollision )
+         --timer.cancel ( checkMemoryTimer )
+         --checkMemoryTimer=nil
+    elseif ( phase == "did" ) then
+        -- Called immediately after scene goes off screen.
+    end
 end
- 
- 
--- -----------------------------------------------------------------------------------
--- Scene event function listeners
--- -----------------------------------------------------------------------------------
+
+
+-- "scene:destroy()"
+function scene:destroy( event )
+
+    local sceneGroup = self.view
+	print("destroy_game")
+    -- Called prior to the removal of scene's view ("sceneGroup").
+    -- Insert code here to clean up the scene.
+    -- Example: remove display objects, save state, etc.
+    package.loaded[physics] = nil
+	physics = nil
+end
+
+
+-- -------------------------------------------------------------------------------
+
+-- Listener setup
 scene:addEventListener( "create", scene )
 scene:addEventListener( "show", scene )
 scene:addEventListener( "hide", scene )
 scene:addEventListener( "destroy", scene )
--- -----------------------------------------------------------------------------------
- 
+
+-- -------------------------------------------------------------------------------
+
 return scene
-
-
