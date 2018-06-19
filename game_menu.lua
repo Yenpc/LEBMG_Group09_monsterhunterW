@@ -1,26 +1,33 @@
 -----------------------------------------------------------------------------------------
 --
--- main.lua
---
+-- Unit5.1
+--這章會將整個結構幾乎大改,我們先將需要的函式庫以及自字型檔之類的直接放到最前端
 -----------------------------------------------------------------------------------------
 
--- Your code here
 --呼叫composer函式庫
 local composer = require( "composer" )
 collectgarbage("collect")
+
 --導入土星
 local sheetInfo = require("saturn")
+local bgm = audio.loadSound ("fd2.mp3")
+local bgm2 = audio.loadSound ("coronamenu.mp3")
+local playBgm = audio.play(bgm,{channel=1,loops=-1,fadeim=1000})
+audio.stop(1)
+local playBgm = audio.play(bgm2,{channel=2,loops=-1,fadeim=1000})
 --呼叫BitmapFont函式庫
 local BFont = require("BitmapFont")
 --導入字型
 local titleFont = BFont.new("GameTitle.png")
 local menuFont = BFont.new("Menu.png")
-
+--創建新場景
 local scene = composer.newScene()
  
 -- -----------------------------------------------------------------------------------
 -- Code outside of the scene event functions below will only be executed ONCE unless
 -- the scene is removed entirely (not recycled) via "composer.removeScene()"
+-- -----------------------------------------------------------------------------------
+-- 然後將一些公共參數先打出來
 -- -----------------------------------------------------------------------------------
 --設定Ｘ中心點
 local centerX = display.contentCenterX
@@ -34,25 +41,21 @@ local menu=display.newGroup()
 local layerGroup = display.newGroup()
 --定義計時器
 local tPrevious = system.getTimer()
-local checkMemoryTimer 
---檢查解析度
-local imageSuffix = display.imageSuffix
-print( imageSuffix  )
+
 -- -----------------------------------------------------------------------------------
 -- Scene event functions
 -- -----------------------------------------------------------------------------------
  
 -- create()
+-- -----------------------------------------------------------------------------------
+-- 這里以下才是場景開始時要出現的畫面
+-- -----------------------------------------------------------------------------------
 function scene:create( event )
- --讀取聲音
- sounds = {
-  menu = audio.loadSound("menu.mp3"),
-  start = audio.loadSound("start.wav"),
-}
+ 
     local sceneGroup = self.view
     -- Code here runs when the scene is first created but has not yet appeared on screen
-    local bg = display.newImageRect( "background_Green_480x320.png", 480, 320 )
-    local bg1 = display.newImageRect( "background_Green_480x320.png", 480, 320 )
+    local bg = display.newImageRect( "test1.png", 480, 320 )
+    local bg1 = display.newImageRect( "test2.png", 480, 320 )
        bg.anchorX = 0
        bg.x = 0
        bg.y = centerY
@@ -77,7 +80,7 @@ function scene:create( event )
        sceneGroup:insert(layerGroup)  
 
     --土星
-    local saturnSheet = graphics.newImageSheet( "saturn.png", sheetInfo:getSheet() )
+    local saturnSheet = graphics.newImageSheet( "saturn1.png", sheetInfo:getSheet() )
     local SaturnOptions = {
     
         name = "saturn",
@@ -115,22 +118,28 @@ function scene:create( event )
     sceneGroup:insert(starLight)
 
     --標題Ｘ位置,Ｙ位置,內容
-    title = titleFont:newBitmapString(centerX,0, "Saturn Invader" )
+    title = titleFont:newBitmapString(centerX,-30, "THE RUN" )
   
     sceneGroup:insert(title)
     
     --Menu
     
-    local menuPlay= menuFont:newBitmapString(0,centerY*1.2, "Play" )
-    menuPlay.name="play"
-    local menuExit= menuFont:newBitmapString(0,centerY*1.6, "Exit" )
-    menuExit.name="exit"
+    local menuPlay= menuFont:newBitmapString(0,centerY*1.0, "play game" )
+    menuPlay.name="play game"
+    local menuUse= menuFont:newBitmapString(0,centerY*1.4, "Use menu")
+    menuUse.name ="Use menu"
+    local menuExit= menuFont:newBitmapString(0,centerY*1.8, "exit game" )
+    menuExit.name="exit game"
 
     menu:insert(menuPlay)--menu群組加入menuPlay
+    menu:insert(menuUse)
     menu:insert(menuExit)--menu群組加入menuExit
     
     sceneGroup:insert(menu)
-end
+end --這個end是scene:create的
+-- -----------------------------------------------------------------------------------
+-- 然後將移動function寫在場景以外的部分
+-- -----------------------------------------------------------------------------------
 --設置移動功能
 local function move(event)
     local tDelta = event.time - tPrevious
@@ -160,26 +169,38 @@ local i
         end
     end
  end
-
+-- -----------------------------------------------------------------------------------
+-- 5.2新增換場景的功能
+-- -----------------------------------------------------------------------------------
 --換場景的功能
- local function changeScene()
-  print("changeScene")
-   composer.gotoScene("game",{effect ="fade",time=400}) --變換場景至game
+local function changeScene2()
+  print("changeScene2")
+  playBgm = audio.play(bgm,{channel=1,loops=-1,fadeim=1000})
+   audio.stop(2)
+   composer.gotoScene("game2",{effect ="fade",time=400}) --變換場景至game
 end
+local function changeScene()
+  print("changeScene")
+  audio.stop(2)
+   composer.gotoScene("gamen",{effect ="fade",time=400}) --變換場景至game
+end
+
 --觸碰事件
 local function menuTouch(event)
   if event.phase=="began" then
     print("touch_"..event.target.name)
-    if event.target.name == "play" then
-      audio.play( sounds.start,{channel=2,onComplete = function() 
-                                      audio.dispose( sounds.start ) 
-                                      sounds.start=nil
-                                      end})
+    if event.target.name == "play game" then
+      --追加下列這行會在點擊play後,將play移走然後呼叫換場景的功能
       transition.to(menu,  {time = 400, x = 480+event.target.contentWidth/2,onComplete = changeScene})
+      print("play pressed")
+    elseif event.target.name == "Use menu" then
+      transition.to(menu,  {time= 400, x = 480+event.target.contentWidth/2,onComplete = changeScene2})
+      print("Use menu")
     else
       os.exit ( )
     end
     for i = 1, menu.numChildren do
+          --新增這條以避免重複點擊
           menu[i]:removeEventListener("touch",menuTouch)
         end
   end
@@ -192,11 +213,7 @@ local function addTouch( )
     end
 end
 
- local function checkMemory()
-   collectgarbage( "collect" )
-   local memUsage_str = string.format( "MEMORY = %.3f KB", collectgarbage( "count" ) )
-   print( memUsage_str, "TEXTURE = "..(system.getInfo("textureMemoryUsed") / (1024 * 1024) ) )
-end
+
 -- show()
 function scene:show( event )
  
@@ -207,14 +224,11 @@ function scene:show( event )
         -- Code here runs when the scene is still off screen (but is about to come on screen)
         Runtime:addEventListener( "enterFrame", move )
         transition.to(title,  {time = 400, y = centerY*0.6})
-        transition.to(menu,  {time = 400, x = centerX,onComplete = addTouch})--將menu群組的x座標移往centerX,移動完成呼叫addTouch函式
+        --將menu群組的x座標移往centerX,移動完成呼叫addTouch函式
+        transition.to(menu,  {time = 400, x = centerX,onComplete = addTouch})
     elseif ( phase == "did" ) then
-      -- Code here runs when the scene is entirely on screen
-        composer.removeScene("game") --移除上個場景
-        print("menu")
-        
-        audio.play( sounds.menu, { channel=1, loops=-1})
-        
+
+        -- Code here runs when the scene is entirely on screen
  
     end
 end
@@ -228,11 +242,6 @@ function scene:hide( event )
  
     if ( phase == "will" ) then
         -- Code here runs when the scene is on screen (but is about to go off screen)
-        audio.stop(1)
-
-        audio.dispose( sounds.menu )
-        sounds.menu = nil
-
         Runtime:removeEventListener( "enterFrame", move )
     elseif ( phase == "did" ) then
         -- Code here runs immediately after the scene goes entirely off screen
@@ -260,4 +269,5 @@ scene:addEventListener( "destroy", scene )
 -- -----------------------------------------------------------------------------------
  
 return scene
+
 

@@ -8,6 +8,8 @@
 local composer = require( "composer" )
 collectgarbage("collect")
 local bgm = audio.loadSound ("fd2.mp3")
+local bgm2 = audio.loadSound ("coronamenu.mp3")
+audio.stop(2)
 local playBgm = audio.play(bgm,{channel=1,loops=-1,fadeim=1000})
 
 --導入土星
@@ -128,6 +130,7 @@ local i
 local function changeScene3()
   print("changeScene3")
   audio.stop(1)
+  playBgm = audio.play(bgm2,{channel=2,loops=-1,fadeim=1000})
    composer.gotoScene("game_menu",{effect ="fade",time=400})
  --變換場景至game
 end
@@ -141,7 +144,56 @@ local function changeScene()
   print("changeScene")
    composer.gotoScene("game",{effect ="fade",time=400}) --變換場景至game
 end
+local function removExplode( obj )
+    return function()
+    obj:removeSelf() 
+    obj=nil
+    --print("explosionGroup numChildren".. explosionGroup.numChildren)
+end 
+end
+local function explode( x,y )
+    local explosionOptions =
+    {   
+        width = 55,
+        height = 55,
+        numFrames = 15,
+        sheetContentWidth = 825,  
+        sheetContentHeight = 55  
+    }
+    local explosionSheet = graphics.newImageSheet( "explosion1.png", explosionOptions )
+    local explosion = display.newSprite( explosionSheet, { name="explosion", start=1, count=15, time=1000 ,loopCount = 1 } )
+    explosion.blendMode = "add"
+    explosion.x=x
+    explosion.y=y
+    explosion:play()
+    explosionGroup:insert(explosion)
+    --print("explosionGroup numChildren".. explosionGroup.numChildren)
+    audio.play( sounds.explosion )
+math.random (-500, -100)
+end
+local function onCollision( event )
+    if ( event.phase == "began" ) then
+            if  event.object1.name == "enemy" and event.object2.name == "bullet"  then
 
+                --子彈碰到敵人,敵人消失
+                print( "began: " .. event.object1.name .. " and " .. event.object2.name )
+                removeBullet(event.object1) 
+                
+                --消失同時呼叫爆炸，爆炸位置=敵人消失位置
+                local x,y =event.object1.x,event.object1.y
+                explode(x,y)
+                score = score + 50
+                scoreText.text = score
+                if score > 50 then changeScene()
+                end
+                
+
+                 
+                 
+            end
+
+    end
+end
 --觸碰事件
 local function menuTouch(event)
   if event.phase=="began" then

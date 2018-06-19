@@ -12,7 +12,6 @@
 
 -- local forward references should go here
 local composer=require ("composer")
-
 local scene=composer.newScene()
 --加入物理引擎
 local physics = require("physics")
@@ -24,7 +23,7 @@ local centerX = display.contentCenterX
 local centerY = display.contentCenterY
 local tPrevious = system.getTimer()
 local backgroundGroup = display.newGroup()
-
+local score = 0
 local layerGroup = display.newGroup()
 local ship
 local fireTimer
@@ -33,20 +32,29 @@ local enemies = display.newGroup()
 --爆炸群組
 local explosionGroup = display.newGroup()
 local checkMemoryTimer
-
+local scoreText = display.newText( score, display.contentCenterX, 20, native.systemFont, 40 )
 local numEnemy = 0
 local enemyArray = {}
+
+
 -- "scene:create()"
 function scene:create( event )
 
     local sceneGroup = self.view
     --預先載入音效
+    sounds = {
+	music = audio.loadSound("d1054421020.mp3"),
+	laser = audio.loadSound("laserFire.wav"),
+	explosion = audio.loadSound("explosion.wav"),
+   }
+   
+    --預先載入音效
    
     -- Initialize the scene here.
     -- Example: add display objects to "sceneGroup", add touch listeners, etc.
     --背景
-    local bg = display.newImageRect( "bg.png", 480, 320 )
-    local bg1 = display.newImageRect( "bg.png", 960, 320)
+    local bg = display.newImageRect( "bgn.jpg", 480, 320 )
+    local bg1 = display.newImageRect( "bgn2.jpg", 480, 320)
        bg.anchorX = 0
        bg.x = 0
        bg.y = centerY
@@ -93,8 +101,8 @@ function scene:create( event )
 
 	--enemy
  function createEnemy()
-	numEnemy = numEnemy +1 
-
+	numEnemy = 1 
+	
 	print(numEnemy)
 	local enemyOptions =
 	{	
@@ -117,20 +125,31 @@ function scene:create( event )
 			startlocationX = centerX*1.7
 			enemyArray[numEnemy] .x = startlocationX
 			--startlocationY = math.random (-500, -100)
-			startlocationY  = math.random (0, display.contentHeight)
+			startlocationY  = math.random (40, display.contentHeight)
 			enemyArray[numEnemy] .y = startlocationY
 		
 			transition.to ( enemyArray[numEnemy] , { time = math.random (6000, 10000), x= -50, y=enemyArray[numEnemy] .y } )
 
 			enemies:insert(enemyArray[numEnemy] )
+			
 	        
- end
- 
-local i
-for i =1, 5 do
-createEnemy()
-end
 	
+ 	end
+
+
+
+end
+local function asd(asdd)
+	print( "asd called" )
+	createEnemy() 
+	
+end
+mytime=timer.performWithDelay(1000,asd,0)
+local function changeScene()
+  print("changeScene")
+   timer.cancel(mytime)
+   composer.gotoScene("gameboss") 
+
 end
 
 local function move(event)
@@ -175,6 +194,7 @@ local function removeBullet( obj )
 end
 
 local function fire(  )
+	audio.play( sounds.laser )
 	print( "fire" )
 	local bullet = display.newImage( "laser.png",ship.x+30,ship.y)
 	transition.to(bullet,  {time = 750, x = display.viewableContentWidth+bullet.contentWidth/2,onComplete =removeBullet})
@@ -245,6 +265,7 @@ local function explode( x,y )
 	explosion:play()
 	explosionGroup:insert(explosion)
 	--print("explosionGroup numChildren".. explosionGroup.numChildren)
+	audio.play( sounds.explosion )
 math.random (-500, -100)
 end
 
@@ -253,13 +274,24 @@ end
 local function onCollision( event )
     if ( event.phase == "began" ) then
 			if  event.object1.name == "enemy" and event.object2.name == "bullet"  then
+
 				--子彈碰到敵人,敵人消失
 				print( "began: " .. event.object1.name .. " and " .. event.object2.name )
-				removeBullet(event.object1)
+				removeBullet(event.object1) 
+				
 				--消失同時呼叫爆炸，爆炸位置=敵人消失位置
 				local x,y =event.object1.x,event.object1.y
 				explode(x,y)
+				score = score + 50
+    			scoreText.text = score
+    			if score >1000 then changeScene()
+				end
+    			
+
+				 
+				 
 			end
+
     end
 end
 
@@ -267,7 +299,10 @@ local function checkMemory()
    collectgarbage( "collect" )
    local memUsage_str = string.format( "MEMORY = %.3f KB", collectgarbage( "count" ) )
    print( memUsage_str, "TEXTURE = "..(system.getInfo("textureMemoryUsed") / (1024 * 1024) ) )
+   
+  
 end
+
 
 
 -- "scene:show()"
@@ -286,6 +321,7 @@ function scene:show( event )
         -- Example: start timers, begin animation, play audio, etc.
         print("game")
         composer.removeScene("menu")
+        audio.play( sounds.music, { channel=1, loops=-1})
         ship:addEventListener( "touch",  shipTouch );
         Runtime:addEventListener( "collision", onCollision )
         checkMemoryTimer = timer.performWithDelay( 1000, checkMemory, 0 )
@@ -300,10 +336,7 @@ function scene:hide( event )
     local phase = event.phase
 
     if ( phase == "will" ) then
-        -- Called when the scene is on screen (but is about to go off screen).
-        -- Insert code here to "pause" the scene.
-        -- Example: stop timers, stop animation, stop audio, etc.
-        physics.stop( )
+       
         audio.stop()
         for s,v in pairs( sounds ) do
 		    audio.dispose( sounds[s] )
@@ -311,9 +344,7 @@ function scene:hide( event )
 		end
          Runtime:removeEventListener( "enterFrame", move );
          ship:removeEventListener( "touch",  changeScene );
-         --Runtime:removeEventListener( "collision", onCollision )
-         --timer.cancel ( checkMemoryTimer )
-         --checkMemoryTimer=nil
+        
     elseif ( phase == "did" ) then
         -- Called immediately after scene goes off screen.
     end
